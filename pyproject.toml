@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pgbrake"
+version = "0.1.0"
+description = "A local safety brake between AI coding agents and your Postgres: approval for risky SQL, row limits, one-command undo, audit log."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Zhang Lixiang" }]
+keywords = ["mcp", "postgres", "claude-code", "codex", "ai-agent", "safety", "undo"]
+dependencies = [
+  "mcp>=1.10",
+  "psycopg[binary]>=3.1",
+  "pglast>=6",
+  "pydantic>=2",
+]
+
+[project.urls]
+Homepage = "https://github.com/lexang/pgbrake"
+Issues = "https://github.com/lexang/pgbrake/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+pgbrake = "pgbrake.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pgbrake"]
