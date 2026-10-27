@@ -6,6 +6,8 @@ pgbrake is a local MCP server that sits between Claude Code / Codex / Cursor and
 Every write the agent makes gets a change id you can reverse with one command. Risky SQL waits
 for a human. Everything is logged. Nothing leaves your machine.
 
+![pgbrake demo](https://raw.githubusercontent.com/lexang/pgbrake/main/docs/demo.gif)
+
 ```
 agent> DELETE FROM users WHERE created_at < '2025-01-01'
 pgbrake> held: DELETE would touch 4,812 rows (limit 100) — approval apv_3f9c21aa
@@ -40,7 +42,6 @@ pgbrake enforces its rules **inside the server**, so they hold no matter which a
 
 ```bash
 pip install pgbrake      # or: uvx pgbrake serve
-# before the PyPI release: pip install git+https://github.com/lexang/pgbrake
 ```
 
 Claude Code:
