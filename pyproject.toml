@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pgbrake"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local safety brake between AI coding agents and your Postgres: approval for risky SQL, row limits, one-command undo, audit log."
 readme = "README.md"
 requires-python = ">=3.10"
