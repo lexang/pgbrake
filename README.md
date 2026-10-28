@@ -96,3 +96,5 @@ pgbrake log                # audit log
 Unlimited undo history, a migration guard for agent terminal commands
 (`prisma migrate reset --force`, `drizzle-kit push --force`, `alembic downgrade base`...: snapshot first,
 then ask), per-project policy files, and audit export. One-time license.
+
+<!-- mcp-name: io.github.lexang/pgbrake -->
