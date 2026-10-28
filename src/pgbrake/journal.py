@@ -45,9 +45,12 @@ def new_id(prefix: str) -> str:
 
 
 class Journal:
-    def __init__(self, path: str | Path | None = None, undo_history: int | None = FREE_UNDO_HISTORY):
+    def __init__(self, path: str | Path | None = None, undo_history: int | None | str = "auto"):
         self.path = Path(path) if path else default_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if undo_history == "auto":  # Pro keeps unlimited undo history
+            from .license import is_pro
+            undo_history = None if is_pro() else FREE_UNDO_HISTORY
         self.undo_history = undo_history
         self.db = sqlite3.connect(self.path, isolation_level=None, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
@@ -64,7 +67,7 @@ class Journal:
 
     def audit(self, limit=50):
         return [dict(r) for r in self.db.execute(
-            "SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))]
+            "SELECT * FROM audit ORDER BY id DESC LIMIT ?", (-1 if limit is None else limit,))]
 
     # ---- changes -----------------------------------------------------
     def add_change(self, *, db, tbl, op, pk_cols, before, after, sql) -> str:
