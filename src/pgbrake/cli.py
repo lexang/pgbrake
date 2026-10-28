@@ -14,6 +14,23 @@ def _ts(t):
     return dt.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S") if t else "-"
 
 
+def _export(j, fmt, out):
+    import csv
+    rows = j.audit(None)
+    f = open(out, "w", newline="") if out else sys.stdout
+    try:
+        if fmt == "json":
+            json.dump(rows, f, indent=1, default=str)
+        else:
+            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else ["ts"])
+            w.writeheader()
+            for r in rows:
+                w.writerow({**r, "ts": _ts(r.get("ts"))})
+    finally:
+        if out:
+            f.close()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="pgbrake", description="Safety brake for AI agents on Postgres")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -33,11 +50,39 @@ def main(argv=None):
     lg = sub.add_parser("log", help="show the audit log")
     lg.add_argument("-n", type=int, default=30)
     lg.add_argument("--json", action="store_true")
+    lg.add_argument("--export", choices=["csv", "json"], help="(Pro) export the whole audit log")
+    lg.add_argument("--out", help="file for --export (default: stdout)")
+    li = sub.add_parser("license", help="show or activate a Pro license")
+    li.add_argument("key", nargs="?", help="license key to activate")
+    sub.add_parser("guard-hook", help="(Pro) Claude Code PreToolUse hook; reads the event on stdin")
+    ih = sub.add_parser("install-hook", help="(Pro) add the migration guard to Claude Code settings")
+    ih.add_argument("--settings", default=".claude/settings.json")
     args = ap.parse_args(argv)
 
     if args.cmd == "serve":
         from .server import main as serve
         return serve(args.dsn)
+
+    if args.cmd == "license":
+        from . import license as lic
+        if args.key:
+            r = lic.activate(args.key)
+            sys.exit(f"license not valid: {r.error}") if not r.valid else print(f"pgbrake Pro activated for {r.email}")
+        else:
+            r = lic.current()
+            print(f"Pro ({r.email})" if r.valid else f"free ({r.error}). Get Pro: {lic.BUY_URL}")
+        return
+    if args.cmd == "guard-hook":
+        from .guard import hook_main
+        return hook_main()
+    if args.cmd == "install-hook":
+        from .guard import install
+        from .license import is_pro, BUY_URL
+        p = install(args.settings)
+        print(f"hook added to {p}")
+        if not is_pro():
+            print(f"note: without a Pro license the hook only warns. Get Pro: {BUY_URL}")
+        return
 
     j = Journal()
     if args.cmd == "pending":
@@ -73,6 +118,11 @@ def main(argv=None):
         print(r.message)
         sys.exit(0 if r.status == "ok" else 1)
     elif args.cmd == "log":
+        if args.export:
+            from .license import is_pro, BUY_URL
+            if not is_pro():
+                sys.exit(f"audit export is a pgbrake Pro feature: {BUY_URL}")
+            return _export(j, args.export, args.out)
         rows = j.audit(args.n)
         if args.json:
             print(json.dumps(rows, indent=1, default=str))
