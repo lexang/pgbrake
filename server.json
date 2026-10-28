@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.lexang/pgbrake",
+  "title": "pgbrake",
+  "description": "Postgres brake for AI agents: risky SQL waits for approval, UPDATE/DELETE get one-command undo.",
+  "repository": {"url": "https://github.com/lexang/pgbrake", "source": "github"},
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "pgbrake",
+      "version": "0.1.1",
+      "transport": {"type": "stdio"},
+      "packageArguments": [{"type": "positional", "value": "serve"}],
+      "environmentVariables": [
+        {"name": "PGBRAKE_DSN", "description": "Postgres connection string, e.g. postgresql://me@localhost/app", "isRequired": true, "format": "string", "isSecret": true}
+      ]
+    }
+  ]
+}
