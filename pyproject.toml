@@ -16,6 +16,7 @@ dependencies = [
   "psycopg[binary]>=3.1",
   "pglast>=6",
   "pydantic>=2",
+  "cryptography>=41",
 ]
 
 [project.urls]
