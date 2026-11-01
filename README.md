@@ -91,10 +91,23 @@ pgbrake log                # audit log
 - Updating a table with no primary key needs approval and cannot be undone.
 - The free version keeps the last 20 undoable changes.
 
-## Pro (coming)
+## Pro
 
-Unlimited undo history, a migration guard for agent terminal commands
-(`prisma migrate reset --force`, `drizzle-kit push --force`, `alembic downgrade base`...: snapshot first,
-then ask), per-project policy files, and audit export. One-time license.
+$29 one-time for the first 100 licenses (then $39). No subscription. 14-day refund.
+**[Buy pgbrake Pro](https://lexang.github.io/#pricing)**
+
+- **Migration guard for agent terminal commands.** A Claude Code `PreToolUse` hook catches
+  `prisma migrate reset --force`, `drizzle-kit push --force`, `alembic downgrade base` and friends,
+  takes a `pg_dump` snapshot first (when `PGBRAKE_DSN` is set), then asks you. Install with `pgbrake install-hook`.
+- **Unlimited undo history** (free keeps the last 20).
+- **Audit export:** `pgbrake log --export csv|json`.
+
+After paying you land on a page that shows your key. Activate it once:
+
+```
+pgbrake license <your-key>     # or set PGBRAKE_LICENSE
+```
+
+Keys are verified offline; pgbrake never phones home.
 
 <!-- mcp-name: io.github.lexang/pgbrake -->
