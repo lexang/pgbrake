@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 PUBLIC_KEY = "FoDihWYHnDjt-jZNoxKDxuVBRkBemd7yiqy5Tcq95xk="
 PREFIX = "PGB1"
-BUY_URL = "https://github.com/lexang/pgbrake#pro"
+BUY_URL = "https://lexang.github.io/#pricing"
 
 
 def _b64d(s: str) -> bytes:
