@@ -1,3 +1,3 @@
 """pgbrake: a local safety brake between AI coding agents and your Postgres."""
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 from .engine import Brake, Policy, Result  # noqa: F401
