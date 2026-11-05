@@ -4,12 +4,12 @@
   "title": "pgbrake",
   "description": "Postgres brake for AI agents: risky SQL waits for approval, UPDATE/DELETE get one-command undo.",
   "repository": {"url": "https://github.com/lexang/pgbrake", "source": "github"},
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "pgbrake",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "transport": {"type": "stdio"},
       "packageArguments": [{"type": "positional", "value": "serve"}],
       "environmentVariables": [
