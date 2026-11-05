@@ -98,7 +98,7 @@ $29 one-time for the first 100 licenses (then $39). No subscription. 14-day refu
 
 - **Migration guard for agent terminal commands.** A Claude Code `PreToolUse` hook catches
   `prisma migrate reset --force`, `drizzle-kit push --force`, `alembic downgrade base` and friends,
-  takes a `pg_dump` snapshot first (when `PGBRAKE_DSN` is set), then asks you. Install with `pgbrake install-hook`.
+  takes a `pg_dump` snapshot first (when `PGBRAKE_DSN` is set), checks `pg_restore` can read it, then asks you. If the snapshot fails, the command is blocked instead (override with `PGBRAKE_ALLOW_NO_SNAPSHOT=1`). Install with `pgbrake install-hook`.
 - **Unlimited undo history** (free keeps the last 20).
 - **Audit export:** `pgbrake log --export csv|json`.
 
