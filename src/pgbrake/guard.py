@@ -46,7 +46,10 @@ def match(command: str) -> str | None:
 
 
 def snapshot(dsn: str) -> tuple[str | None, str]:
-    """pg_dump the database before the command runs. Returns (path, note)."""
+    """pg_dump the database before the command runs, then check the dump is readable.
+
+    Returns (path, note). path is None when no usable snapshot exists.
+    """
     if not shutil.which("pg_dump"):
         return None, "pg_dump not found, no snapshot taken"
     d = Path(os.environ.get("PGBRAKE_HOME", Path.home() / ".pgbrake")) / "snapshots"
@@ -56,8 +59,19 @@ def snapshot(dsn: str) -> tuple[str | None, str]:
         subprocess.run(["pg_dump", "--format=custom", f"--file={out}", dsn],
                        check=True, capture_output=True, timeout=600)
     except Exception as e:  # noqa: BLE001
+        out.unlink(missing_ok=True)
         return None, f"snapshot failed: {getattr(e, 'stderr', b'') or e}"[:300]
-    return str(out), f"snapshot saved: {out} (restore: pg_restore --clean -d <db> {out})"
+    # A dump that exists is not a dump that restores. At least make sure
+    # pg_restore can read its table of contents (catches truncated files, full disks).
+    if shutil.which("pg_restore"):
+        try:
+            r = subprocess.run(["pg_restore", "--list", str(out)],
+                               check=True, capture_output=True, timeout=120)
+            if not r.stdout.strip():
+                raise ValueError("empty table of contents")
+        except Exception as e:  # noqa: BLE001
+            return None, f"snapshot unreadable ({out}): {getattr(e, 'stderr', b'') or e}"[:300]
+    return str(out), f"snapshot saved and readable: {out} (restore: pg_restore --clean -d <db> {out})"
 
 
 def decide(command: str, *, pro: bool | None = None, dsn: str | None = None) -> dict | None:
@@ -72,7 +86,17 @@ def decide(command: str, *, pro: bool | None = None, dsn: str | None = None) -> 
         return {"systemMessage": msg}
     note = "no PGBRAKE_DSN set, no snapshot taken"
     if dsn:
-        _, note = snapshot(dsn)
+        path, note = snapshot(dsn)
+        if path is None and os.environ.get("PGBRAKE_ALLOW_NO_SNAPSHOT") != "1":
+            # The snapshot is the safety net. If it isn't there, don't offer
+            # the reset at all; the human can opt out explicitly.
+            return {"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    f"pgbrake: {why}. Blocked because {note}. Fix the snapshot (disk space, "
+                    f"pg_dump version, DSN) or set PGBRAKE_ALLOW_NO_SNAPSHOT=1 to proceed without one."),
+            }}
     return {"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "ask",
