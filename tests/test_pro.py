@@ -80,3 +80,20 @@ def test_install_idempotent(tmp_path):
     d = json.loads(p.read_text())
     assert d["permissions"] == {"allow": []}
     assert len(d["hooks"]["PreToolUse"]) == 1
+
+
+def test_guard_denies_when_snapshot_fails(monkeypatch):
+    monkeypatch.setattr(guard, "snapshot", lambda dsn: (None, "snapshot failed: disk full"))
+    monkeypatch.delenv("PGBRAKE_ALLOW_NO_SNAPSHOT", raising=False)
+    out = guard.decide("npx prisma migrate reset --force", pro=True, dsn="postgresql://x/y")
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "disk full" in out["hookSpecificOutput"]["permissionDecisionReason"]
+    monkeypatch.setenv("PGBRAKE_ALLOW_NO_SNAPSHOT", "1")
+    out = guard.decide("npx prisma migrate reset --force", pro=True, dsn="postgresql://x/y")
+    assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+def test_guard_asks_when_snapshot_ok(monkeypatch):
+    monkeypatch.setattr(guard, "snapshot", lambda dsn: ("/tmp/s.dump", "snapshot saved and readable"))
+    out = guard.decide("npx prisma migrate reset --force", pro=True, dsn="postgresql://x/y")
+    assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
