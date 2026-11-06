@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from . import license as lic
 
@@ -54,7 +55,7 @@ def snapshot(dsn: str) -> tuple[str | None, str]:
         return None, "pg_dump not found, no snapshot taken"
     d = Path(os.environ.get("PGBRAKE_HOME", Path.home() / ".pgbrake")) / "snapshots"
     d.mkdir(parents=True, exist_ok=True)
-    out = d / f"snap_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}.dump"
+    out = d / f"snap_{dt.datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.dump"
     try:
         subprocess.run(["pg_dump", "--format=custom", f"--file={out}", dsn],
                        check=True, capture_output=True, timeout=600)
@@ -72,6 +73,57 @@ def snapshot(dsn: str) -> tuple[str | None, str]:
         except Exception as e:  # noqa: BLE001
             return None, f"snapshot unreadable ({out}): {getattr(e, 'stderr', b'') or e}"[:300]
     return str(out), f"snapshot saved and readable: {out} (restore: pg_restore --clean -d <db> {out})"
+
+
+_COUNT_SQL = ("select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace "
+              "where c.relkind in ('r','p') and n.nspname not in ('pg_catalog','information_schema') "
+              "and n.nspname not like 'pg_toast%'")
+
+
+def _with_dbname(dsn: str, name: str) -> str:
+    """Point a libpq DSN (URI or key=value) at another database on the same server."""
+    if "://" in dsn:
+        u = urlsplit(dsn)
+        return urlunsplit((u.scheme, u.netloc, "/" + name, u.query, u.fragment))
+    return f"{dsn} dbname={name}"  # later keywords win in libpq
+
+
+def _psql(dsn: str, sql: str, timeout: int = 60) -> str:
+    r = subprocess.run(["psql", "-X", "-At", "-v", "ON_ERROR_STOP=1", "-d", dsn, "-c", sql],
+                       check=True, capture_output=True, timeout=timeout, text=True)
+    return r.stdout.strip()
+
+
+def restore_drill(dsn: str, dump: str) -> tuple[bool, str]:
+    """Restore the dump into a throwaway database and compare table counts.
+
+    Opt-in (PGBRAKE_VERIFY_RESTORE=1): it needs CREATEDB rights and roughly the
+    database's size again in disk and time. The scratch database is always dropped.
+    """
+    for tool in ("psql", "pg_restore"):
+        if not shutil.which(tool):
+            return False, f"restore drill skipped: {tool} not found"
+    name = f"pgbrake_drill_{dt.datetime.now().strftime('%Y%m%d%H%M%S')}_{os.getpid()}"
+    admin = os.environ.get("PGBRAKE_DRILL_DSN") or dsn
+    target = _with_dbname(admin, name)
+    try:
+        _psql(admin, f'create database "{name}"')
+    except Exception as e:  # noqa: BLE001
+        return False, f"restore drill could not create a scratch database: {getattr(e, 'stderr', '') or e}"[:300]
+    try:
+        subprocess.run(["pg_restore", "--no-owner", "--no-privileges", "--exit-on-error", "-d", target, dump],
+                       check=True, capture_output=True, timeout=1800)
+        want, got = int(_psql(dsn, _COUNT_SQL)), int(_psql(target, _COUNT_SQL))
+        if got != want:
+            return False, f"restore drill: source has {want} tables, restored copy has {got}"
+        return True, f"restore drill passed: {got} tables restored into a scratch database"
+    except Exception as e:  # noqa: BLE001
+        return False, f"restore drill failed: {getattr(e, 'stderr', b'') or e}"[:300]
+    finally:
+        try:
+            _psql(admin, f'drop database if exists "{name}"')
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def decide(command: str, *, pro: bool | None = None, dsn: str | None = None) -> dict | None:
@@ -97,6 +149,17 @@ def decide(command: str, *, pro: bool | None = None, dsn: str | None = None) -> 
                     f"pgbrake: {why}. Blocked because {note}. Fix the snapshot (disk space, "
                     f"pg_dump version, DSN) or set PGBRAKE_ALLOW_NO_SNAPSHOT=1 to proceed without one."),
             }}
+        if path is not None and os.environ.get("PGBRAKE_VERIFY_RESTORE") == "1":
+            ok, drill_note = restore_drill(dsn, path)
+            if not ok:
+                return {"hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        f"pgbrake: {why}. Blocked because the snapshot did not pass the restore drill "
+                        f"({drill_note}). Snapshot kept at {path}. Unset PGBRAKE_VERIFY_RESTORE to skip the drill."),
+                }}
+            note = f"{note}; {drill_note}"
     return {"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "ask",

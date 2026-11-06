@@ -97,3 +97,25 @@ def test_guard_asks_when_snapshot_ok(monkeypatch):
     monkeypatch.setattr(guard, "snapshot", lambda dsn: ("/tmp/s.dump", "snapshot saved and readable"))
     out = guard.decide("npx prisma migrate reset --force", pro=True, dsn="postgresql://x/y")
     assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+def test_guard_denies_when_drill_fails(monkeypatch):
+    monkeypatch.setenv("PGBRAKE_VERIFY_RESTORE", "1")
+    monkeypatch.setattr(guard, "snapshot", lambda dsn: ("/tmp/s.dump", "snapshot saved and readable"))
+    monkeypatch.setattr(guard, "restore_drill", lambda dsn, p: (False, "restore drill: source has 3 tables, restored copy has 2"))
+    out = guard.decide("npx prisma migrate reset --force", pro=True, dsn="postgresql://x/y")
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "restored copy has 2" in out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_guard_drill_off_by_default(monkeypatch):
+    monkeypatch.delenv("PGBRAKE_VERIFY_RESTORE", raising=False)
+    monkeypatch.setattr(guard, "snapshot", lambda dsn: ("/tmp/s.dump", "snapshot saved and readable"))
+    monkeypatch.setattr(guard, "restore_drill", lambda dsn, p: (_ for _ in ()).throw(AssertionError("should not run")))
+    out = guard.decide("npx prisma migrate reset --force", pro=True, dsn="postgresql://x/y")
+    assert out["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+def test_with_dbname():
+    assert guard._with_dbname("postgresql://u:p@h:5432/app?sslmode=require", "d") == "postgresql://u:p@h:5432/d?sslmode=require"
+    assert guard._with_dbname("host=/tmp port=5544 dbname=app", "d").endswith("dbname=d")
